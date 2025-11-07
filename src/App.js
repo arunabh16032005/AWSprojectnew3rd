@@ -151,6 +151,7 @@ function S3Upload() {
     setMsg("Uploading...");
     setUploading(true);
     
+    
     try {
       await uploadData({ 
         key: file.name, 
