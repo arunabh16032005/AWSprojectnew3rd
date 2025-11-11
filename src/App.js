@@ -12,7 +12,7 @@ import "./App.css";
 
 // ======= YOUR AWS VALUES =======
 const REGION = 'us-east-1';
-const IDENTITY_POOL_ID = 'us-east-1:f0de591f-af21-493d-b00b-c1303b1b8a35';
+const IDENTITY_POOL_ID = 'us-east-1:3d029468-fb22-4299-929e-13ccfacacab6';
 const BOT_ID = '57DFNYXLFJ';
 const BOT_ALIAS_ID = 'TSTALIASID';
 const LOCALE_ID = 'en_US';
