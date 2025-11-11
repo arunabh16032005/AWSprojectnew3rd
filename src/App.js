@@ -2,10 +2,12 @@ import React, { useState, useEffect } from "react";
 import { Amplify } from "aws-amplify";
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { uploadData, getUrl, list } from "@aws-amplify/storage";
-import { withAuthenticator } from "@aws-amplify/ui-react";
+import { Authenticator } from "@aws-amplify/ui-react";
+import "@aws-amplify/ui-react/styles.css";
 import awsconfig from "./aws-exports";
 import { LexRuntimeV2Client, RecognizeTextCommand } from "@aws-sdk/client-lex-runtime-v2";
 import { fromCognitoIdentityPool } from "@aws-sdk/credential-providers";
+import "./App.css";
 
 
 // ======= YOUR AWS VALUES =======
@@ -17,6 +19,33 @@ const LOCALE_ID = 'en_US';
 // ===============================
 
 Amplify.configure(awsconfig);
+
+// Custom Amplify theme
+const theme = {
+  name: 'custom-theme',
+  tokens: {
+    colors: {
+      brand: {
+        primary: {
+          10: '#f0f7ff',
+          20: '#e0f2ff',
+          60: '#0a4a8a',
+          80: '#0a4a8a',
+          90: '#061e3e',
+          100: '#000000',
+        },
+        secondary: {
+          10: '#f5f5f5',
+          20: '#efefef',
+          60: '#666666',
+          80: '#333333',
+          90: '#1a1a1a',
+          100: '#000000',
+        },
+      },
+    },
+  },
+};
 
 
 
@@ -95,49 +124,44 @@ function LexChatbot({ user }) {
   }
 
   return (
-    <div style={{ border: "1px solid #aaa", borderRadius: 8, padding: 16, marginBottom: 32, maxWidth: 500 }}>
-      <h3>Lex Chatbot</h3>
-      <div style={{ minHeight: 100, marginBottom: 16, maxHeight: 300, overflowY: 'auto' }}>
-        {messages.map((msg, idx) => (
-          <div key={idx} style={{
-            fontWeight: msg.from === "user" ? "bold" : "normal",
-            marginBottom: 8,
-            padding: 8,
-            backgroundColor: msg.from === "user" ? "#e7f5ff" : "#f8f9fa",
-            borderRadius: 4
-          }}>
-            {msg.from === "user" ? "You: " : "Bot: "}{msg.text}
-          </div>
-        ))}
+    <div className="component-card">
+      <div className="card-title">💬 Lex Chatbot</div>
+      <div className="chatbot-container">
+        <div className="messages-area">
+          {messages.map((msg, idx) => (
+            <div key={idx} className={`message ${msg.from}`}>
+              {msg.text}
+            </div>
+          ))}
+        </div>
+        <div className="input-area">
+          <input
+            type="text"
+            className="message-input"
+            value={input}
+            disabled={loading}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => (e.key === "Enter" ? sendLexMessage() : null)}
+            placeholder="Type your message..."
+          />
+          <button 
+            className="send-btn"
+            onClick={sendLexMessage} 
+            disabled={loading || !input || !lexClient}
+          >
+            {loading ? '⏳' : '📤'}
+          </button>
+        </div>
+        {!lexClient && !initError && (
+          <div className="status-indicator connecting">🔄 Connecting to Lex bot...</div>
+        )}
+        {initError && (
+          <div className="status-indicator error">❌ Error: {initError}</div>
+        )}
+        {lexClient && !initError && (
+          <div className="status-indicator connected">✅ Connected to Lex bot</div>
+        )}
       </div>
-      <input
-        value={input}
-        disabled={loading}
-        onChange={e => setInput(e.target.value)}
-        onKeyDown={e => (e.key === "Enter" ? sendLexMessage() : null)}
-        style={{ width: "70%", padding: 8 }}
-        placeholder="Type your message..."
-      />
-      <button 
-        onClick={sendLexMessage} 
-        disabled={loading || !input || !lexClient} 
-        style={{ 
-          marginLeft: 8, 
-          padding: 8,
-          cursor: (loading || !input || !lexClient) ? 'not-allowed' : 'pointer'
-        }}
-      >
-        {loading ? 'Sending...' : 'Send'}
-      </button>
-      {!lexClient && !initError && (
-        <div style={{color:'#228be6', marginTop:'8px'}}>🔄 Connecting to Lex bot...</div>
-      )}
-      {initError && (
-        <div style={{color:'#e03131', marginTop:'8px'}}>❌ Lex Bot Error: {initError}</div>
-      )}
-      {lexClient && !initError && (
-        <div style={{color:'#2b8a3e', marginTop:'8px'}}>✅ Connected to Lex bot</div>
-      )}
     </div>
   );
 }
@@ -228,105 +252,78 @@ function S3Upload() {
   }
 
   return (
-    <div style={{ border: "1px solid #aaa", borderRadius: 8, padding: 16, marginBottom: 32, maxWidth: 600 }}>
-      <h3>S3 File Upload</h3>
+    <div className="component-card">
+      <div className="card-title">📁 S3 File Upload</div>
       
-      {/* File Input */}
-      <div style={{ marginBottom: 12 }}>
-        <input 
-          type="file" 
-          onChange={e => setFile(e.target.files[0])}
-          disabled={uploading}
-        />
-        <button 
-          onClick={uploadFile} 
-          disabled={!file || uploading} 
-          style={{ 
-            marginLeft: 8,
-            padding: "8px 16px",
-            backgroundColor: "#228be6",
-            color: "#fff",
-            border: "none",
-            borderRadius: "4px",
-            cursor: (!file || uploading) ? 'not-allowed' : 'pointer'
-          }}
-        >
-          {uploading ? 'Uploading...' : 'Upload'}
-        </button>
-      </div>
+      <div className="file-upload-section">
+        {/* File Input */}
+        <div className="file-input-group">
+          <input 
+            type="file" 
+            className="file-input"
+            onChange={e => setFile(e.target.files[0])}
+            disabled={uploading}
+          />
+          <button 
+            className="upload-btn"
+            onClick={uploadFile} 
+            disabled={!file || uploading}
+          >
+            {uploading ? '⏳ Uploading...' : '📤 Upload'}
+          </button>
+        </div>
 
-      {/* Upload Message */}
-      <div style={{ marginTop: 12 }}>
+        {/* Upload Message */}
         {msg && (
-          <div style={{ 
-            color: msg.includes('failed') ? '#e03131' : '#2b8a3e',
-            padding: '8px',
-            backgroundColor: msg.includes('failed') ? '#ffe3e3' : '#e7f5e9',
-            borderRadius: '4px',
-            marginBottom: '12px'
-          }}>
+          <div className={`upload-message ${msg.includes('failed') ? 'error' : 'success'}`}>
             {msg}
           </div>
         )}
         
         {/* Presigned URL Link */}
         {s3url && (
-          <div style={{ marginTop: 8 }}>
+          <div style={{ marginTop: 12 }}>
             <a 
               href={s3url} 
               target="_blank" 
               rel="noopener noreferrer" 
-              style={{ 
-                color: '#228be6', 
-                textDecoration: 'none',
-                fontWeight: 'bold'
-              }}
+              className="file-link"
             >
-              📁 View Uploaded File (Valid for 15 min)
+              � View Uploaded File (Valid for 15 min)
             </a>
           </div>
         )}
       </div>
 
       {/* List of All Uploaded Files */}
-      <div style={{ marginTop: 20, borderTop: '1px solid #ddd', paddingTop: 16 }}>
-        <h4>📂 Uploaded Files</h4>
+      <div className="files-section">
+        <div className="files-section-title">📂 Uploaded Files</div>
         {loadingFiles ? (
-          <p>Loading files...</p>
+          <p className="loading">Loading files...</p>
         ) : uploadedFiles.length > 0 ? (
-          <ul style={{ marginTop: 8 }}>
-            {uploadedFiles.map((file, idx) => (
-              <li key={idx} style={{ 
-                marginBottom: 8,
-                padding: 8,
-                backgroundColor: '#f8f9fa',
-                borderRadius: 4
-              }}>
-                <strong>{file.name}</strong>
-                <br />
-                <small style={{ color: '#666' }}>
-                  Size: {(file.size / 1024).toFixed(2)} KB | Modified: {new Date(file.lastModified).toLocaleDateString()}
-                </small>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="files-list">
+              {uploadedFiles.map((file, idx) => (
+                <li key={idx} className="file-item">
+                  <div className="file-name">📄 {file.name}</div>
+                  <div className="file-info">
+                    Size: {(file.size / 1024).toFixed(2)} KB | Modified: {new Date(file.lastModified).toLocaleDateString()}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         ) : (
-          <p style={{ color: '#999' }}>No files uploaded yet</p>
+          <div className="empty-files">
+            No files uploaded yet
+          </div>
         )}
         <button 
+          className="refresh-btn"
           onClick={loadFiles}
           disabled={loadingFiles}
-          style={{
-            marginTop: 8,
-            padding: "6px 12px",
-            backgroundColor: "#6c757d",
-            color: "#fff",
-            border: "none",
-            borderRadius: "4px",
-            cursor: loadingFiles ? 'not-allowed' : 'pointer'
-          }}
         >
-          Refresh Files
+          🔄 Refresh Files
         </button>
       </div>
     </div>
@@ -336,35 +333,69 @@ function S3Upload() {
 
 function App({ signOut, user }) {
   return (
-    <div style={{ margin: "2rem", fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <h1 style={{ color: "#228be6" }}>
-        Welcome, {user.username || user.attributes?.email}!
-      </h1>
-      <button 
-        onClick={signOut} 
-        style={{ 
-          padding: "0.5rem 1.5rem", 
-          background: "#228be6", 
-          color: "#fff", 
-          border: "none", 
-          borderRadius: "6px",
-          cursor: 'pointer',
-          fontSize: '14px'
-        }}
-      >
-        Sign out
-      </button>
-      <hr style={{ margin: '24px 0' }} />
-      
-      <LexChatbot user={user} />
-      <S3Upload />
-      
-      <hr style={{ margin: '24px 0' }} />
-      <p style={{ color: '#666', fontSize: '14px' }}>
-        ✅ Cognito Auth | ✅ Lex Chatbot | ✅ S3 File Upload
-      </p>
-    </div>
+    <>
+      {/* Floating Gel Background */}
+      <div className="gel-background">
+        <div className="gel-blob"></div>
+        <div className="gel-blob"></div>
+        <div className="gel-blob"></div>
+      </div>
+
+      {/* Navigation Bar */}
+      <nav className="navbar">
+        <div className="navbar-content">
+          <div className="navbar-brand">MyApp</div>
+          <div className="navbar-actions">
+            <div className="user-info">👤 {user.username || user.attributes?.email}</div>
+            <button 
+              className="signout-btn"
+              onClick={signOut}
+            >
+              🚪 Sign out
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <div className="app-container">
+        {/* Welcome Section */}
+        <div className="welcome-section">
+          <h1 className="welcome-title">Welcome Back! 🎉</h1>
+          <p className="welcome-subtitle">
+            {user.username || user.attributes?.email}
+          </p>
+        </div>
+
+        {/* Lex Chatbot */}
+        <LexChatbot user={user} />
+
+        {/* S3 Upload */}
+        <S3Upload />
+
+        {/* Footer */}
+        <div className="footer">
+          <div>
+            <span className="status-badge">✅ Cognito Auth</span>
+            <span className="status-badge">✅ Lex Chatbot</span>
+            <span className="status-badge">✅ S3 File Upload</span>
+          </div>
+          <p style={{ marginTop: 16 }}>
+            🌊 Powered by AWS Amplify | Built with React | Secured by Cognito
+          </p>
+        </div>
+      </div>
+    </>
   );
 }
 
-export default withAuthenticator(App);
+// Wrap with Authenticator and custom theme
+function AppWithAuth() {
+  return (
+    <Authenticator theme={theme}>
+      {({ signOut, user }) => <App signOut={signOut} user={user} />}
+    </Authenticator>
+  );
+}
+
+export default AppWithAuth;
