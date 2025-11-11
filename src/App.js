@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Amplify } from "aws-amplify";
 import { fetchAuthSession } from 'aws-amplify/auth';
-import { uploadData, getUrl } from "@aws-amplify/storage";
+import { uploadData, getUrl, list } from "@aws-amplify/storage";
 import { withAuthenticator } from "@aws-amplify/ui-react";
 import awsconfig from "./aws-exports";
 import { LexRuntimeV2Client, RecognizeTextCommand } from "@aws-sdk/client-lex-runtime-v2";
 import { fromCognitoIdentityPool } from "@aws-sdk/credential-providers";
+
 
 // ======= YOUR AWS VALUES =======
 const REGION = 'us-east-1';
@@ -16,6 +17,8 @@ const LOCALE_ID = 'en_US';
 // ===============================
 
 Amplify.configure(awsconfig);
+
+
 
 function LexChatbot({ user }) {
   const [messages, setMessages] = useState([]);
@@ -139,11 +142,51 @@ function LexChatbot({ user }) {
   );
 }
 
+
 function S3Upload() {
   const [file, setFile] = useState(null);
   const [s3url, setS3url] = useState("");
   const [msg, setMsg] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+
+  // ✅ NEW: Load uploaded files on component mount
+  useEffect(() => {
+    loadFiles();
+  }, []);
+
+  // ✅ NEW: List all files from S3
+  async function loadFiles() {
+    setLoadingFiles(true);
+    try {
+      const result = await list();
+      console.log('Files in S3:', result);
+      setUploadedFiles(result.items || []);
+    } catch (err) {
+      console.error('Error loading files:', err);
+      setUploadedFiles([]);
+    } finally {
+      setLoadingFiles(false);
+    }
+  }
+
+  // ✅ NEW: Get presigned URL for a file
+  async function getPresignedUrl(fileKey) {
+    try {
+      const { url } = await getUrl({ 
+        key: fileKey,
+        options: {
+          expiresIn: 900, // 15 minutes
+          accessLevel: 'guest'
+        }
+      });
+      return url.toString();
+    } catch (err) {
+      console.error('Error getting presigned URL:', err);
+      return null;
+    }
+  }
 
   async function uploadFile() {
     if (!file) return;
@@ -151,19 +194,33 @@ function S3Upload() {
     setMsg("Uploading...");
     setUploading(true);
     
-    
     try {
+      // Generate unique filename to avoid overwrites
+      const timestamp = new Date().getTime();
+      const uniqueKey = `${timestamp}-${file.name}`;
+      
       await uploadData({ 
-        key: file.name, 
+        key: uniqueKey, 
         data: file, 
         options: { contentType: file.type } 
       });
       
-      const { url } = await getUrl({ key: file.name });
-      setS3url(url.toString());
-      setMsg("Upload successful!");
+      // Get presigned URL
+      const presignedUrl = await getPresignedUrl(uniqueKey);
+      
+      if (presignedUrl) {
+        setS3url(presignedUrl);
+      } else {
+        setS3url(`S3 file uploaded: ${uniqueKey}`);
+      }
+      
+      setMsg("Upload successful! 🎉");
+      setFile(null);
+      
+      // Reload file list
+      await loadFiles();
     } catch (err) {
-      console.error('Upload error:', err); // Debug log
+      console.error('Upload error:', err);
       setMsg("Upload failed: " + err.message);
     } finally {
       setUploading(false);
@@ -171,36 +228,111 @@ function S3Upload() {
   }
 
   return (
-    <div style={{ border: "1px solid #aaa", borderRadius: 8, padding: 16, marginBottom: 32, maxWidth: 500 }}>
+    <div style={{ border: "1px solid #aaa", borderRadius: 8, padding: 16, marginBottom: 32, maxWidth: 600 }}>
       <h3>S3 File Upload</h3>
-      <input 
-        type="file" 
-        onChange={e => setFile(e.target.files[0])}
-        disabled={uploading}
-      />
-      <button 
-        onClick={uploadFile} 
-        disabled={!file || uploading} 
-        style={{ 
-          marginLeft: 8,
-          cursor: (!file || uploading) ? 'not-allowed' : 'pointer'
-        }}
-      >
-        {uploading ? 'Uploading...' : 'Upload'}
-      </button>
+      
+      {/* File Input */}
+      <div style={{ marginBottom: 12 }}>
+        <input 
+          type="file" 
+          onChange={e => setFile(e.target.files[0])}
+          disabled={uploading}
+        />
+        <button 
+          onClick={uploadFile} 
+          disabled={!file || uploading} 
+          style={{ 
+            marginLeft: 8,
+            padding: "8px 16px",
+            backgroundColor: "#228be6",
+            color: "#fff",
+            border: "none",
+            borderRadius: "4px",
+            cursor: (!file || uploading) ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {uploading ? 'Uploading...' : 'Upload'}
+        </button>
+      </div>
+
+      {/* Upload Message */}
       <div style={{ marginTop: 12 }}>
-        {msg && <div style={{ color: msg.includes('failed') ? '#e03131' : '#2b8a3e' }}>{msg}</div>}
+        {msg && (
+          <div style={{ 
+            color: msg.includes('failed') ? '#e03131' : '#2b8a3e',
+            padding: '8px',
+            backgroundColor: msg.includes('failed') ? '#ffe3e3' : '#e7f5e9',
+            borderRadius: '4px',
+            marginBottom: '12px'
+          }}>
+            {msg}
+          </div>
+        )}
+        
+        {/* Presigned URL Link */}
         {s3url && (
           <div style={{ marginTop: 8 }}>
-            <a href={s3url} target="_blank" rel="noopener noreferrer" style={{ color: '#228be6' }}>
-              📁 View Uploaded File
+            <a 
+              href={s3url} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              style={{ 
+                color: '#228be6', 
+                textDecoration: 'none',
+                fontWeight: 'bold'
+              }}
+            >
+              📁 View Uploaded File (Valid for 15 min)
             </a>
           </div>
         )}
       </div>
+
+      {/* List of All Uploaded Files */}
+      <div style={{ marginTop: 20, borderTop: '1px solid #ddd', paddingTop: 16 }}>
+        <h4>📂 Uploaded Files</h4>
+        {loadingFiles ? (
+          <p>Loading files...</p>
+        ) : uploadedFiles.length > 0 ? (
+          <ul style={{ marginTop: 8 }}>
+            {uploadedFiles.map((file, idx) => (
+              <li key={idx} style={{ 
+                marginBottom: 8,
+                padding: 8,
+                backgroundColor: '#f8f9fa',
+                borderRadius: 4
+              }}>
+                <strong>{file.name}</strong>
+                <br />
+                <small style={{ color: '#666' }}>
+                  Size: {(file.size / 1024).toFixed(2)} KB | Modified: {new Date(file.lastModified).toLocaleDateString()}
+                </small>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p style={{ color: '#999' }}>No files uploaded yet</p>
+        )}
+        <button 
+          onClick={loadFiles}
+          disabled={loadingFiles}
+          style={{
+            marginTop: 8,
+            padding: "6px 12px",
+            backgroundColor: "#6c757d",
+            color: "#fff",
+            border: "none",
+            borderRadius: "4px",
+            cursor: loadingFiles ? 'not-allowed' : 'pointer'
+          }}
+        >
+          Refresh Files
+        </button>
+      </div>
     </div>
   );
 }
+
 
 function App({ signOut, user }) {
   return (
@@ -227,11 +359,10 @@ function App({ signOut, user }) {
       <LexChatbot user={user} />
       <S3Upload />
       
-      {/* <h2>Your Application Content</h2>
-      <p>
-        This app includes Cognito Auth, Lex chatbot, and S3 file upload as examples. 
-        You can now build your real application features!
-      </p> */}
+      <hr style={{ margin: '24px 0' }} />
+      <p style={{ color: '#666', fontSize: '14px' }}>
+        ✅ Cognito Auth | ✅ Lex Chatbot | ✅ S3 File Upload
+      </p>
     </div>
   );
 }
